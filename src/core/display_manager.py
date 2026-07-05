@@ -168,17 +168,28 @@ class DisplayManager:
         try:
             print(f"[INFO] Extending: {self._internal_display} -> {external_display}")
             
-            # Set best resolution for internal display
-            internal_best = self._get_best_resolution(self._internal_display)
-            if internal_best:
-                print(f"[INFO] Setting internal display to best resolution: {internal_best}")
-                self.xrandr.set_display_mode(self._internal_display, internal_best)
+            # Get best common resolution for both displays
+            best_common = self._get_best_common_resolution(self._internal_display, external_display)
             
-            # Set best resolution for external display
-            external_best = self._get_best_resolution(external_display)
-            if external_best:
-                print(f"[INFO] Setting external display to best resolution: {external_best}")
-                self.xrandr.set_display_mode(external_display, external_best)
+            if best_common:
+                print(f"[INFO] Using best common resolution for both displays: {best_common}")
+                resolution = best_common
+            else:
+                # Fallback to best resolution of internal display
+                internal_best = self._get_best_resolution(self._internal_display)
+                if internal_best:
+                    print(f"[WARNING] No common resolution, using internal best: {internal_best}")
+                    resolution = internal_best
+                else:
+                    print("[ERROR] No available resolution for internal display")
+                    return False
+            
+            # Set resolution for both displays
+            if not self.xrandr.set_display_mode(self._internal_display, resolution):
+                print(f"[WARNING] Failed to set resolution {resolution} on internal display")
+            
+            if not self.xrandr.set_display_mode(external_display, resolution):
+                print(f"[WARNING] Failed to set resolution {resolution} on external display")
             
             # Enable internal display and set as primary
             if not self.xrandr.enable_display(self._internal_display):
