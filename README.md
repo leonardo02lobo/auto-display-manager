@@ -27,8 +27,7 @@ Gestión automática de pantallas externas en Linux con detección automática d
 ### 1. Clonar el repositorio
 
 ```bash
-cd /home/leonardo/Documentos/Project
-git clone https://github.com/TU_USUARIO/auto-display-manager.git
+git clone https://github.com/leonardo02lobo/auto-display-manager.git
 cd auto-display-manager
 ```
 
