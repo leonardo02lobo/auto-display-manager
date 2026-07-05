@@ -168,20 +168,26 @@ class DisplayManager:
         try:
             print(f"[INFO] Extending: {self._internal_display} -> {external_display}")
             
-            # Get best common resolution for both displays
-            best_common = self._get_best_common_resolution(self._internal_display, external_display)
+            # Get internal display resolution
+            internal = self.get_internal_display()
+            if not internal or not internal.resolution:
+                print("[ERROR] Internal display has no resolution")
+                return False
             
-            if best_common:
-                print(f"[INFO] Using best common resolution for both displays: {best_common}")
-                resolution = best_common
-            else:
-                # Fallback to best resolution of internal display
-                internal_best = self._get_best_resolution(self._internal_display)
-                if internal_best:
-                    print(f"[WARNING] No common resolution, using internal best: {internal_best}")
-                    resolution = internal_best
+            resolution = internal.resolution
+            print(f"[INFO] Using internal display resolution for both: {resolution}")
+            
+            # Check if external display supports this resolution
+            external_modes = self.xrandr.get_display_modes(external_display)
+            if resolution not in external_modes:
+                print(f"[WARNING] Resolution {resolution} not available on {external_display}")
+                # Fallback to best common resolution
+                best_common = self._get_best_common_resolution(self._internal_display, external_display)
+                if best_common:
+                    print(f"[INFO] Using fallback common resolution: {best_common}")
+                    resolution = best_common
                 else:
-                    print("[ERROR] No available resolution for internal display")
+                    print("[ERROR] No compatible resolution available")
                     return False
             
             # Set resolution for both displays
