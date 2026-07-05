@@ -7,13 +7,13 @@ from typing import Optional
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                             QLabel, QComboBox, QPushButton, QListWidget, 
                             QListWidgetItem, QGroupBox, QTextEdit, QCheckBox,
-                            QMessageBox, QSplitter)
+                            QMessageBox, QSplitter, QSystemTrayIcon, QMenu, QStyle)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon, QAction
 
-from ..core.display_manager import DisplayManager, DisplayMode
-from ..core.monitor_detector import MonitorDetector
-from ..config.modes import DISPLAY_MODES, get_mode_list
+from core.display_manager import DisplayManager, DisplayMode
+from core.monitor_detector import MonitorDetector
+from config.modes import DISPLAY_MODES, get_mode_list
 
 
 class MainWindow(QMainWindow):
@@ -160,32 +160,37 @@ class MainWindow(QMainWindow):
     
     def _init_system_tray(self) -> None:
         """Initialize system tray icon"""
-        # Check if system tray is available
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            self._log("System tray not available")
-            return
+        self.tray_icon = None
         
-        self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.style().standardIcon(
-            QStyle.StandardPixmap.SP_ComputerIcon
-        ))
-        
-        # Create tray menu
-        tray_menu = QMenu()
-        
-        show_action = QAction("Mostrar", self)
-        show_action.triggered.connect(self.show)
-        tray_menu.addAction(show_action)
-        
-        quit_action = QAction("Salir", self)
-        quit_action.triggered.connect(self.close)
-        tray_menu.addAction(quit_action)
-        
-        self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.show()
-        
-        # Hide to tray on close
-        self.setWindowFlags(Qt.WindowType.Window)
+        try:
+            # Check if system tray is available
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                self._log("System tray not available")
+                return
+            
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(self.style().standardIcon(
+                QStyle.StandardPixmap.SP_ComputerIcon
+            ))
+            
+            # Create tray menu
+            tray_menu = QMenu()
+            
+            show_action = QAction("Mostrar", self)
+            show_action.triggered.connect(self.show)
+            tray_menu.addAction(show_action)
+            
+            quit_action = QAction("Salir", self)
+            quit_action.triggered.connect(self.close)
+            tray_menu.addAction(quit_action)
+            
+            self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.show()
+            self._log("System tray initialized")
+            
+        except Exception as e:
+            self._log(f"Error initializing system tray: {e}")
+            self.tray_icon = None
     
     def _refresh_display_list(self) -> None:
         """Refresh the display list"""
@@ -296,12 +301,11 @@ class MainWindow(QMainWindow):
         self.monitor_detector.stop()
         self.refresh_timer.stop()
         
-        # Hide to tray instead of closing
-        if self.tray_icon.isVisible():
+        # Hide to tray instead of closing if tray is available
+        if self.tray_icon and self.tray_icon.isVisible():
             self.hide()
             event.ignore()
         else:
             event.accept()
 
 
-from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QStyle

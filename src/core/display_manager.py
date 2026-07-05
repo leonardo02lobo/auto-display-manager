@@ -109,70 +109,147 @@ class DisplayManager:
     def _apply_extend_mode(self, external_display: Optional[str]) -> bool:
         """Extend display to external monitor"""
         if not external_display:
+            print("[ERROR] No external display provided for extend mode")
             return False
         
         try:
+            print(f"[INFO] Extending: {self._internal_display} -> {external_display}")
+            
             # Enable internal display and set as primary
-            self.xrandr.enable_display(self._internal_display)
-            self.xrandr.set_primary_display(self._internal_display)
+            if not self.xrandr.enable_display(self._internal_display):
+                print(f"[ERROR] Failed to enable internal display {self._internal_display}")
+                return False
+            
+            if not self.xrandr.set_primary_display(self._internal_display):
+                print(f"[ERROR] Failed to set {self._internal_display} as primary")
+                return False
             
             # Enable external display and position to the right
-            self.xrandr.enable_display(external_display)
-            self.xrandr.set_display_position(external_display, 
-                                            f"--right-of {self._internal_display}")
+            if not self.xrandr.enable_display(external_display):
+                print(f"[ERROR] Failed to enable external display {external_display}")
+                return False
+            
+            if not self.xrandr.set_display_position(external_display, 
+                                            f"--right-of {self._internal_display}"):
+                print(f"[ERROR] Failed to position {external_display}")
+                return False
+            
+            print("[INFO] Extend mode applied successfully")
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Exception in extend mode: {e}")
             return False
     
     def _apply_mirror_mode(self, external_display: Optional[str]) -> bool:
         """Mirror internal display to external"""
         if not external_display:
+            print("[ERROR] No external display provided for mirror mode")
             return False
         
         try:
             # Get internal display resolution
             internal = self.get_internal_display()
-            if not internal or not internal.resolution:
+            if not internal:
+                print(f"[ERROR] Internal display not found: {self._internal_display}")
                 return False
             
-            # Enable both displays with same resolution
-            self.xrandr.enable_display(self._internal_display)
-            self.xrandr.set_primary_display(self._internal_display)
+            if not internal.resolution:
+                print("[ERROR] Internal display has no resolution")
+                return False
             
-            self.xrandr.enable_display(external_display)
-            self.xrandr.set_display_mode(external_display, internal.resolution)
+            print(f"[INFO] Mirroring: {self._internal_display} ({internal.resolution}) -> {external_display}")
+            
+            # Enable internal display and set as primary
+            if not self.xrandr.enable_display(self._internal_display):
+                print(f"[ERROR] Failed to enable internal display {self._internal_display}")
+                return False
+            
+            if not self.xrandr.set_primary_display(self._internal_display):
+                print(f"[ERROR] Failed to set {self._internal_display} as primary")
+                return False
+            
+            # Get available modes for external display
+            external_modes = self.xrandr.get_display_modes(external_display)
+            print(f"[INFO] Available modes for {external_display}: {external_modes}")
+            
+            # Check if internal resolution is available on external
+            if internal.resolution not in external_modes:
+                print(f"[WARNING] Resolution {internal.resolution} not available on {external_display}")
+                # Use first available mode as fallback
+                if external_modes:
+                    internal.resolution = external_modes[0]
+                    print(f"[INFO] Using fallback resolution: {internal.resolution}")
+                else:
+                    print("[ERROR] No available modes on external display")
+                    return False
+            
+            # Enable external display with same resolution
+            if not self.xrandr.enable_display(external_display):
+                print(f"[ERROR] Failed to enable external display {external_display}")
+                return False
+            
+            if not self.xrandr.set_display_mode(external_display, internal.resolution):
+                print(f"[ERROR] Failed to set mode {internal.resolution} on {external_display}")
+                return False
+            
+            print("[INFO] Mirror mode applied successfully")
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Exception in mirror mode: {e}")
             return False
     
     def _apply_external_only_mode(self, external_display: Optional[str]) -> bool:
         """Use only external display"""
         if not external_display:
+            print("[ERROR] No external display provided for external-only mode")
             return False
         
         try:
+            print(f"[INFO] External-only mode: {external_display}")
+            
             # Disable internal display
-            self.xrandr.disable_display(self._internal_display)
+            if not self.xrandr.disable_display(self._internal_display):
+                print(f"[WARNING] Failed to disable internal display {self._internal_display}")
             
             # Enable external display and set as primary
-            self.xrandr.enable_display(external_display)
-            self.xrandr.set_primary_display(external_display)
+            if not self.xrandr.enable_display(external_display):
+                print(f"[ERROR] Failed to enable external display {external_display}")
+                return False
+            
+            if not self.xrandr.set_primary_display(external_display):
+                print(f"[ERROR] Failed to set {external_display} as primary")
+                return False
+            
+            print("[INFO] External-only mode applied successfully")
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Exception in external-only mode: {e}")
             return False
     
     def _apply_internal_only_mode(self) -> bool:
         """Use only internal display"""
         try:
+            print(f"[INFO] Internal-only mode: {self._internal_display}")
+            
             # Disable all external displays
             for ext_display in self._external_displays:
-                self.xrandr.disable_display(ext_display)
+                print(f"[INFO] Disabling external display: {ext_display}")
+                if not self.xrandr.disable_display(ext_display):
+                    print(f"[WARNING] Failed to disable {ext_display}")
             
             # Enable internal display
-            self.xrandr.enable_display(self._internal_display)
-            self.xrandr.set_primary_display(self._internal_display)
+            if not self.xrandr.enable_display(self._internal_display):
+                print(f"[ERROR] Failed to enable internal display {self._internal_display}")
+                return False
+            
+            if not self.xrandr.set_primary_display(self._internal_display):
+                print(f"[ERROR] Failed to set {self._internal_display} as primary")
+                return False
+            
+            print("[INFO] Internal-only mode applied successfully")
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Exception in internal-only mode: {e}")
             return False
     
     def _apply_auto_mode(self, external_display: Optional[str]) -> bool:
