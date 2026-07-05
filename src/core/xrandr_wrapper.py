@@ -241,3 +241,113 @@ class XRandRWrapper:
             return True
         except subprocess.CalledProcessError:
             return False
+    
+    def generate_modeline(self, resolution: str, refresh_rate: float = 60.0) -> Optional[Tuple[str, str]]:
+        """
+        Generate a modeline for a given resolution using cvt
+        
+        Args:
+            resolution: Resolution string (e.g., "1920x1080")
+            refresh_rate: Desired refresh rate
+            
+        Returns:
+            Tuple of (mode_name, modeline_params) or None if failed
+        """
+        try:
+            width, height = resolution.split('x')
+            result = subprocess.run(
+                ['cvt', width, height, str(refresh_rate)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Parse the Modeline output
+            # Example: Modeline "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync
+            match = re.search(r'Modeline\s+"([^"]+)"\s+(.+)', result.stdout)
+            if match:
+                mode_name = match.group(1)
+                modeline_params = match.group(2).strip()
+                return (mode_name, modeline_params)
+            return None
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+            return None
+    
+    def add_custom_mode(self, mode_name: str, modeline_params: str) -> bool:
+        """
+        Add a custom mode to the X server using xrandr --newmode
+        
+        Args:
+            mode_name: Name of the mode (e.g., "1920x1080_60.00")
+            modeline_params: Modeline parameters from cvt
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cmd = ['xrandr', '--newmode', mode_name] + modeline_params.split()
+            subprocess.run(cmd, capture_output=True, check=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
+    
+    def attach_mode_to_output(self, display_name: str, mode_name: str) -> bool:
+        """
+        Attach a custom mode to a specific output using xrandr --addmode
+        
+        Args:
+            display_name: Name of the display
+            mode_name: Name of the mode to attach
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            subprocess.run(
+                ['xrandr', '--addmode', display_name, mode_name],
+                capture_output=True,
+                check=True
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+    
+    def force_resolution(self, display_name: str, resolution: str) -> bool:
+        """
+        Force a resolution on a display by creating a custom mode if needed.
+        This bypasses EDID limitations reported by the monitor.
+        
+        Args:
+            display_name: Name of the display
+            resolution: Desired resolution (e.g., "1920x1080")
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # First try setting the mode directly (in case it already exists)
+        if self.set_display_mode(display_name, resolution):
+            return True
+        
+        # Generate a custom modeline
+        mode_data = self.generate_modeline(resolution)
+        if not mode_data:
+            print(f"[ERROR] Failed to generate modeline for {resolution}")
+            return False
+        
+        mode_name, modeline_params = mode_data
+        print(f"[INFO] Generated custom mode: {mode_name}")
+        
+        # Add the mode to the X server (ignore error if already exists)
+        self.add_custom_mode(mode_name, modeline_params)
+        
+        # Attach the mode to the output
+        if not self.attach_mode_to_output(display_name, mode_name):
+            print(f"[WARNING] Failed to attach mode {mode_name} to {display_name} (may already be attached)")
+        
+        # Try to set the mode
+        if self.set_display_mode(display_name, mode_name):
+            print(f"[INFO] Successfully forced resolution {resolution} on {display_name}")
+            return True
+        
+        print(f"[ERROR] Failed to set custom mode {mode_name} on {display_name}")
+        return False
