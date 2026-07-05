@@ -25,27 +25,71 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self.display_manager = DisplayManager()
-        self.monitor_detector = MonitorDetector(
-            callback=self._on_display_changed,
-            poll_interval=2.0
-        )
-        self.monitor_detector.set_display_manager(self.display_manager)
+        self.display_manager = None
+        self.monitor_detector = None
+        self.tray_icon = None
+        self.refresh_timer = None
         
         self._auto_apply = False
         self._selected_mode = DisplayMode.EXTEND
         
-        self._init_ui()
-        self._init_system_tray()
-        self._refresh_display_list()
+        try:
+            self._init_ui()
+            self._log("UI inicializada")
+        except Exception as e:
+            self._log(f"Error inicializando UI: {e}")
+            raise
+        
+        # Initialize display manager (may cause segfault)
+        try:
+            self._log("Inicializando display manager...")
+            self.display_manager = DisplayManager()
+            self._log("Display manager inicializado")
+        except Exception as e:
+            self._log(f"Error inicializando display manager: {e}")
+            raise
+        
+        # Initialize monitor detector
+        try:
+            self._log("Inicializando monitor detector...")
+            self.monitor_detector = MonitorDetector(
+                callback=self._on_display_changed,
+                poll_interval=2.0
+            )
+            self.monitor_detector.set_display_manager(self.display_manager)
+            self._log("Monitor detector inicializado")
+        except Exception as e:
+            self._log(f"Error inicializando monitor detector: {e}")
+            self.monitor_detector = None
+        
+        # Initialize system tray
+        try:
+            self._init_system_tray()
+        except Exception as e:
+            self._log(f"Error inicializando system tray: {e}")
+        
+        # Refresh display list
+        try:
+            self._refresh_display_list()
+        except Exception as e:
+            self._log(f"Error refrescando display list: {e}")
         
         # Start monitor detection
-        self.monitor_detector.start()
+        if self.monitor_detector:
+            try:
+                self.monitor_detector.start()
+                self._log("Monitor detector iniciado")
+            except Exception as e:
+                self._log(f"Error iniciando monitor detector: {e}")
         
         # Auto-refresh timer
-        self.refresh_timer = QTimer()
-        self.refresh_timer.timeout.connect(self._refresh_display_list)
-        self.refresh_timer.start(5000)  # Refresh every 5 seconds
+        try:
+            self.refresh_timer = QTimer()
+            self.refresh_timer.timeout.connect(self._refresh_display_list)
+            self.refresh_timer.start(5000)  # Refresh every 5 seconds
+            self._log("Timer iniciado")
+        except Exception as e:
+            self._log(f"Error iniciando timer: {e}")
     
     def _init_ui(self) -> None:
         """Initialize the user interface"""

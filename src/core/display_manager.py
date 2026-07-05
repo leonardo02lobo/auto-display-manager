@@ -72,6 +72,53 @@ class DisplayManager:
                     return display
         return None
     
+    def _reset_display_configuration(self, display_name: str) -> bool:
+        """Reset display configuration to auto"""
+        try:
+            return self.xrandr.enable_display(display_name)
+        except Exception:
+            return False
+    
+    def _get_best_common_resolution(self, display1: str, display2: str) -> Optional[str]:
+        """Get the best common resolution between two displays"""
+        modes1 = self.xrandr.get_display_modes(display1)
+        modes2 = self.xrandr.get_display_modes(display2)
+        
+        # Find common resolutions
+        common_modes = set(modes1) & set(modes2)
+        
+        if not common_modes:
+            return None
+        
+        # Sort by resolution (width * height) and return the best
+        def resolution_score(res):
+            try:
+                w, h = map(int, res.split('x'))
+                return w * h
+            except:
+                return 0
+        
+        best_mode = max(common_modes, key=resolution_score)
+        return best_mode
+    
+    def _get_best_resolution(self, display_name: str) -> Optional[str]:
+        """Get the best available resolution for a display"""
+        modes = self.xrandr.get_display_modes(display_name)
+        
+        if not modes:
+            return None
+        
+        # Sort by resolution (width * height) and return the best
+        def resolution_score(res):
+            try:
+                w, h = map(int, res.split('x'))
+                return w * h
+            except:
+                return 0
+        
+        best_mode = max(modes, key=resolution_score)
+        return best_mode
+    
     def apply_mode(self, mode: DisplayMode, 
                    external_display: Optional[str] = None) -> bool:
         """
@@ -92,6 +139,12 @@ class DisplayManager:
         # Select external display if not specified
         if not external_display and self._external_displays:
             external_display = self._external_displays[0]
+        
+        # Reset configurations before applying new mode (fix bug 1)
+        print("[INFO] Resetting display configurations...")
+        self._reset_display_configuration(self._internal_display)
+        if external_display:
+            self._reset_display_configuration(external_display)
         
         if mode == DisplayMode.EXTEND:
             return self._apply_extend_mode(external_display)
@@ -114,6 +167,18 @@ class DisplayManager:
         
         try:
             print(f"[INFO] Extending: {self._internal_display} -> {external_display}")
+            
+            # Set best resolution for internal display
+            internal_best = self._get_best_resolution(self._internal_display)
+            if internal_best:
+                print(f"[INFO] Setting internal display to best resolution: {internal_best}")
+                self.xrandr.set_display_mode(self._internal_display, internal_best)
+            
+            # Set best resolution for external display
+            external_best = self._get_best_resolution(external_display)
+            if external_best:
+                print(f"[INFO] Setting external display to best resolution: {external_best}")
+                self.xrandr.set_display_mode(external_display, external_best)
             
             # Enable internal display and set as primary
             if not self.xrandr.enable_display(self._internal_display):
@@ -147,17 +212,23 @@ class DisplayManager:
             return False
         
         try:
-            # Get internal display resolution
-            internal = self.get_internal_display()
-            if not internal:
-                print(f"[ERROR] Internal display not found: {self._internal_display}")
-                return False
+            print(f"[INFO] Mirroring: {self._internal_display} -> {external_display}")
             
-            if not internal.resolution:
-                print("[ERROR] Internal display has no resolution")
-                return False
+            # Get best common resolution
+            best_common = self._get_best_common_resolution(self._internal_display, external_display)
             
-            print(f"[INFO] Mirroring: {self._internal_display} ({internal.resolution}) -> {external_display}")
+            if best_common:
+                print(f"[INFO] Using best common resolution: {best_common}")
+                resolution = best_common
+            else:
+                # Fallback to best resolution of external display
+                external_best = self._get_best_resolution(external_display)
+                if external_best:
+                    print(f"[WARNING] No common resolution, using external best: {external_best}")
+                    resolution = external_best
+                else:
+                    print("[ERROR] No available resolution for external display")
+                    return False
             
             # Enable internal display and set as primary
             if not self.xrandr.enable_display(self._internal_display):
@@ -168,28 +239,17 @@ class DisplayManager:
                 print(f"[ERROR] Failed to set {self._internal_display} as primary")
                 return False
             
-            # Get available modes for external display
-            external_modes = self.xrandr.get_display_modes(external_display)
-            print(f"[INFO] Available modes for {external_display}: {external_modes}")
-            
-            # Check if internal resolution is available on external
-            if internal.resolution not in external_modes:
-                print(f"[WARNING] Resolution {internal.resolution} not available on {external_display}")
-                # Use first available mode as fallback
-                if external_modes:
-                    internal.resolution = external_modes[0]
-                    print(f"[INFO] Using fallback resolution: {internal.resolution}")
-                else:
-                    print("[ERROR] No available modes on external display")
-                    return False
+            # Set resolution for internal display
+            if not self.xrandr.set_display_mode(self._internal_display, resolution):
+                print(f"[WARNING] Failed to set resolution {resolution} on internal display")
             
             # Enable external display with same resolution
             if not self.xrandr.enable_display(external_display):
                 print(f"[ERROR] Failed to enable external display {external_display}")
                 return False
             
-            if not self.xrandr.set_display_mode(external_display, internal.resolution):
-                print(f"[ERROR] Failed to set mode {internal.resolution} on {external_display}")
+            if not self.xrandr.set_display_mode(external_display, resolution):
+                print(f"[ERROR] Failed to set mode {resolution} on {external_display}")
                 return False
             
             print("[INFO] Mirror mode applied successfully")
@@ -206,6 +266,12 @@ class DisplayManager:
         
         try:
             print(f"[INFO] External-only mode: {external_display}")
+            
+            # Set best resolution for external display
+            external_best = self._get_best_resolution(external_display)
+            if external_best:
+                print(f"[INFO] Setting external display to best resolution: {external_best}")
+                self.xrandr.set_display_mode(external_display, external_best)
             
             # Disable internal display
             if not self.xrandr.disable_display(self._internal_display):
