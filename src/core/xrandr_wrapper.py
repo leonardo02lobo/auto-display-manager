@@ -4,6 +4,7 @@ Wrapper for xrandr commands to manage displays
 
 import subprocess
 import re
+import time
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
@@ -397,6 +398,19 @@ class XRandRWrapper:
                         ['bspc', 'monitor', bspwm_monitor, '-r'],
                         capture_output=True
                     )
+            
+            # Restart polybar to refresh workspaces
+            print("[INFO] Restarting polybar...")
+            try:
+                subprocess.run(['polybar-msg', 'cmd', 'restart'], capture_output=True, timeout=5)
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                # Fallback: kill and restart polybar
+                try:
+                    subprocess.run(['pkill', 'polybar'], capture_output=True)
+                    time.sleep(0.5)
+                    subprocess.run(['polybar', 'main'], capture_output=True, start_new_session=True)
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    print("[WARNING] Failed to restart polybar")
             
             return True
         except subprocess.CalledProcessError as e:
