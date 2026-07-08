@@ -320,6 +320,10 @@ class DisplayManager:
                 if not self.xrandr.disable_display(ext_display):
                     print(f"[WARNING] Failed to disable {ext_display}")
             
+            # Cleanup bspwm monitors/desktops for disconnected displays
+            print("[INFO] Cleaning up bspwm desktops...")
+            self.xrandr.cleanup_bspwm_desktops()
+            
             # Enable internal display
             if not self.xrandr.enable_display(self._internal_display):
                 print(f"[ERROR] Failed to enable internal display {self._internal_display}")

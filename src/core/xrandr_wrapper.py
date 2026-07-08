@@ -351,3 +351,54 @@ class XRandRWrapper:
         
         print(f"[ERROR] Failed to set custom mode {mode_name} on {display_name}")
         return False
+    
+    def cleanup_bspwm_desktops(self) -> bool:
+        """
+        Remove bspwm monitors/desktops for disconnected displays.
+        This fixes the issue where bspwm keeps workspaces for disconnected monitors.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Check if bspc is available
+            subprocess.run(['which', 'bspc'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("[INFO] bspc not found, skipping bspwm cleanup")
+            return True
+        
+        try:
+            # Get list of bspwm monitors
+            result = subprocess.run(
+                ['bspc', 'query', '-M', '--names'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            bspwm_monitors = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            
+            # Get list of connected xrandr outputs
+            xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, check=True)
+            connected_outputs = []
+            for line in xrandr_result.stdout.split('\n'):
+                if 'connected' in line:
+                    match = re.match(r'^(\S+)\s+connected', line)
+                    if match:
+                        connected_outputs.append(match.group(1))
+            
+            print(f"[INFO] bspwm monitors: {bspwm_monitors}")
+            print(f"[INFO] Connected xrandr outputs: {connected_outputs}")
+            
+            # Remove bspwm monitors that don't have a connected xrandr output
+            for bspwm_monitor in bspwm_monitors:
+                if bspwm_monitor not in connected_outputs:
+                    print(f"[INFO] Removing bspwm monitor: {bspwm_monitor}")
+                    subprocess.run(
+                        ['bspc', 'monitor', bspwm_monitor, '-r'],
+                        capture_output=True
+                    )
+            
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"[WARNING] Failed to cleanup bspwm: {e}")
+            return False

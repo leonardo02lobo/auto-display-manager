@@ -74,7 +74,9 @@ class MonitorDetector:
                 display_name = external_displays[-1].name if external_displays else None
                 self._event_queue.put((True, display_name))
             else:
-                # Display disconnected
+                # Display disconnected - cleanup bspwm desktops
+                print("[INFO] Display disconnected, cleaning up bspwm...")
+                self._display_manager.xrandr.cleanup_bspwm_desktops()
                 self._event_queue.put((False, None))
             
             self._last_external_count = current_count
